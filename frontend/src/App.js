@@ -1,30 +1,37 @@
-import React from "react";
-import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
-import HRDashboard from "./components/HRDashboard";
+import React, { useState } from "react";
 import EmployeeDashboard from "./components/EmployeeDashboard";
+import HRDashboard from "./components/HRDashboard";
 
 function App() {
+
+  const [role, setRole] = useState("employer");
+
   return (
-    <Router>
-      <div style={{ padding: "20px" }}>
-        <h1>SALARITE VIRTUAL HR</h1>
+    <div>
 
-        <nav style={{ marginBottom: "20px" }}>
-          <Link to="/hr" style={{ marginRight: "20px" }}>
-            HR Dashboard
-          </Link>
-          <Link to="/employee">
-            Employee Dashboard
-          </Link>
-        </nav>
+      {/* Top Navigation */}
+      <div style={{
+        padding: 15,
+        background: "#1f2937",
+        color: "white",
+        display: "flex",
+        justifyContent: "center",
+        gap: 20
+      }}>
+        <button onClick={() => setRole("employee")}>
+          Employee Dashboard
+        </button>
 
-        <Routes>
-          <Route path="/" element={<HRDashboard />} />
-          <Route path="/hr" element={<HRDashboard />} />
-          <Route path="/employee" element={<EmployeeDashboard />} />
-        </Routes>
+        <button onClick={() => setRole("hr")}>
+          Virtual HR Dashboard
+        </button>
       </div>
-    </Router>
+
+      {/* Show only one dashboard at a time */}
+      {role === "employee" && <EmployeeDashboard />}
+      {role === "hr" && <HRDashboard />}
+
+    </div>
   );
 }
 

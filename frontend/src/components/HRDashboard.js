@@ -1,266 +1,231 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
 function HRDashboard() {
-  const [candidate, setCandidate] = useState("");
-  const [mode, setMode] = useState("Google Meet");
-  const [link, setLink] = useState("");
-  const [time, setTime] = useState("");
-  const [editingInterviewId, setEditingInterviewId] = useState(null);
+
+  const [hrName, setHrName] = useState("");
   const [tasks, setTasks] = useState([]);
+  const [candidate, setCandidate] = useState("");
+  const [date, setDate] = useState("");
+  const [mode, setMode] = useState("");
   const [interviews, setInterviews] = useState([]);
 
-  const API = "http://127.0.0.1:8000";
+
+  const [participants, setParticipants] = useState({});
+  const [newPerson, setNewPerson] = useState("");
+
+  const fetchTasks = useCallback(() => {
+    if (!hrName) return;
+
+    axios
+      .get(`http://127.0.0.1:8000/tasks/hr/${hrName}`)
+      .then((res) => setTasks(res.data));
+  }, [hrName]);
+
+  const fetchInterviews = useCallback(() => {
+    axios.get("http://127.0.0.1:8000/interviews")
+      .then((res) => {
+        const filtered = res.data.filter(i => i.hr_name === hrName);
+        setInterviews(filtered);
+      });
+  }, [hrName]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    fetchTasks();
+    fetchInterviews();
 
-  const fetchData = async () => {
+    const interval = setInterval(() => {
+      fetchTasks();
+      fetchInterviews();
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [fetchTasks, fetchInterviews]);
+
+  const updateStatus = async (id, status) => {
     try {
-      const tasksRes = await axios.get(`${API}/tasks/`);
-      const interviewsRes = await axios.get(`${API}/interviews/`);
-
-      setTasks(tasksRes.data);
-      setInterviews(interviewsRes.data);
-    } catch (error) {
-      console.log(error);
+      await axios.put(
+        `http://127.0.0.1:8000/tasks/${id}`,
+        null,
+        { params: { status } }
+      );
+    } catch {
+      alert("Error updating status");
     }
   };
 
-  const deleteInterview = async (id) => {
-    try {
-      await axios.delete(`${API}/interviews/${id}`);
-      fetchData();
-    } catch (error) {
-      console.log(error);
-    }
+  const deleteTask = async (id) => {
+    await axios.delete(`http://127.0.0.1:8000/tasks/${id}`);
   };
 
   const scheduleInterview = async () => {
-    try {
-      if (editingInterviewId) {
-        await axios.put(`${API}/interviews/${editingInterviewId}`, {
-          candidate_name: candidate,
-          interview_type: mode,
-          meet_link: link,
-          scheduled_time: time
-        });
-        setEditingInterviewId(null);
-      } else {
-        await axios.post(`${API}/interviews/`, {
-          candidate_name: candidate,
-          interview_type: mode,
-          meet_link: link,
-          scheduled_time: time
-        });
-      }
+    await axios.post("http://127.0.0.1:8000/interviews", {
+      candidate_name: candidate,
+      hr_name: hrName,
+      interview_date: date,
+      mode
+    });
 
-      setCandidate("");
-      setMode("Google Meet");
-      setLink("");
-      setTime("");
-
-      fetchData();
-    } catch (error) {
-      console.log(error);
-    }
+    setCandidate("");
+    setDate("");
+    setMode("");
   };
 
-  const editInterview = (interview) => {
-    setEditingInterviewId(interview.id);
-    setCandidate(interview.candidate_name);
-    setMode(interview.interview_type);
-    setLink(interview.meet_link || "");
-    setTime(interview.scheduled_time);
+  const deleteInterview = async (id) => {
+    await axios.delete(`http://127.0.0.1:8000/interviews/${id}`);
   };
 
-  const totalTasks = tasks.length;
-  const pendingTasks = tasks.filter(t => t.status === "Pending").length;
-  const completedTasks = tasks.filter(t => t.status === "Completed").length;
+  
+  const addParticipant = (interviewId) => {
+    if (!newPerson) return;
 
-  const totalInterviews = interviews.length;
-  const googleMeetCount = interviews.filter(i => i.interview_type === "Google Meet").length;
-  const phoneCallCount = interviews.filter(i => i.interview_type === "Phone Call").length;
+    setParticipants(prev => ({
+      ...prev,
+      [interviewId]: [...(prev[interviewId] || []), newPerson]
+    }));
+
+    setNewPerson("");
+  };
+
+ 
+  const removeParticipant = (interviewId, index) => {
+    const updated = [...participants[interviewId]];
+    updated.splice(index, 1);
+
+    setParticipants(prev => ({
+      ...prev,
+      [interviewId]: updated
+    }));
+  };
 
   return (
-    <div style={styles.container}>
-      <h2 style={styles.heading}>HR Dashboard</h2>
+    <div style={{ padding: 30 }}>
 
-      {/* STATISTICS */}
-      <div style={styles.card}>
-        <h3>Statistics</h3>
-        <p>Total Tasks: {totalTasks}</p>
-        <p>Pending Tasks: {pendingTasks}</p>
-        <p>Completed Tasks: {completedTasks}</p>
-        <p>Total Interviews: {totalInterviews}</p>
-        <p>Google Meet: {googleMeetCount}</p>
-        <p>Phone Call: {phoneCallCount}</p>
-      </div>
+      <h2>Virtual HR Dashboard</h2>
 
-      {/* SCHEDULE INTERVIEW */}
-      <div style={styles.card}>
-        <h3>{editingInterviewId ? "Update Interview" : "Schedule Interview"}</h3>
+      <h3>Enter HR Name</h3>
+      <input
+        value={hrName}
+        onChange={(e) => setHrName(e.target.value)}
+        placeholder="e.g. HR1 or Anita Verma"
+      />
 
-        <input
-          placeholder="Candidate Name"
-          value={candidate}
-          onChange={(e) => setCandidate(e.target.value)}
-          style={styles.input}
-        />
+      <h3>Assigned Tasks</h3>
 
-        <select
-          value={mode}
-          onChange={(e) => setMode(e.target.value)}
-          style={styles.input}
+      {tasks.map((task) => (
+        <div
+          key={task.id}
+          style={{ border: "1px solid gray", padding: 10, margin: 10 }}
         >
-          <option>Google Meet</option>
-          <option>Phone Call</option>
-        </select>
+          <b>{task.title}</b> — {task.candidate_name} <br />
 
-        {mode === "Google Meet" && (
+          <p><b>Description:</b> {task.description}</p>
+
+          Priority: {task.priority} <br />
+          Status: {task.status} <br />
+          Deadline: {task.deadline} <br />
+
+          <button onClick={() => updateStatus(task.id, "In Progress")}>
+            In Progress
+          </button>
+
+          <button onClick={() => updateStatus(task.id, "Completed")}>
+            Completed
+          </button>
+
+          <button onClick={() => deleteTask(task.id)}>
+            Delete Task
+          </button>
+        </div>
+      ))}
+
+      <h3>Schedule Interview</h3>
+
+      <input
+        placeholder="Candidate Name"
+        value={candidate}
+        onChange={(e) => setCandidate(e.target.value)}
+      />
+
+      <input
+        type="datetime-local"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
+      />
+
+      <select
+        value={mode}
+        onChange={(e) => setMode(e.target.value)}
+      >
+        <option value="">Select Mode</option>
+        <option>Voice</option>
+        <option>Video</option>
+        <option>Chat</option>
+      </select>
+
+      <button onClick={scheduleInterview}>
+        Schedule Interview
+      </button>
+
+      <h3>Scheduled Interviews</h3>
+
+      {interviews.map((i) => (
+        <div
+          key={i.id}
+          style={{ border: "1px solid gray", padding: 10, margin: 10 }}
+        >
+          Candidate: {i.candidate_name} <br />
+          HR: {i.hr_name} <br />
+          Date: {i.interview_date} <br />
+          Mode: {i.mode} <br />
+
+          <button onClick={() => deleteInterview(i.id)}>
+            Delete Interview
+          </button>
+
+          {/* ⭐ NEW — Participants section */}
+          <h4>Add Participants</h4>
+
           <input
-            placeholder="Meet Link"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            style={styles.input}
+            placeholder="Enter name or email"
+            value={newPerson}
+            onChange={(e) => setNewPerson(e.target.value)}
           />
-        )}
 
-        <input
-          placeholder="Scheduled Time"
-          value={time}
-          onChange={(e) => setTime(e.target.value)}
-          style={styles.input}
-        />
+          <button onClick={() => addParticipant(i.id)}>
+            Add Person
+          </button>
 
-        <button style={styles.editBtn} onClick={scheduleInterview}>
-          {editingInterviewId ? "Update Interview" : "Schedule Interview"}
-        </button>
-      </div>
+          <div style={{ marginTop: 10 }}>
+            {(participants[i.id] || []).map((p, index) => (
+              <div key={index}>
+                👤 {p}
+                <button onClick={() => removeParticipant(i.id, index)}>
+                  Remove
+                </button>
+              </div>
+            ))}
+          </div>
 
-      {/* ALL TASKS */}
-      <div style={styles.card}>
-        <h3>All Tasks</h3>
-        {tasks.length === 0 ? (
-          <p>No tasks available</p>
-        ) : (
-          tasks.map(task => (
-            <div key={task.id} style={styles.listItem}>
-              <strong>{task.title}</strong>
-              <p>Candidate: {task.candidate_name}</p>
-              <p>Status: {task.status}</p>
-            </div>
-          ))
-        )}
-      </div>
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => alert("Voice Call Started")}>
+              Voice
+            </button>
 
-      {/* LIVE INTERVIEW STATUS */}
-      <div style={styles.card}>
-        <h3>Live Interview Status</h3>
+            <button onClick={() => alert("Video Call Started")}>
+              Video
+            </button>
 
-        <h4>Google Meet Interviews ({googleMeetCount})</h4>
-        {interviews
-          .filter(i => i.interview_type === "Google Meet")
-          .map(interview => (
-            <div key={interview.id} style={styles.listItem}>
-              <p><strong>{interview.candidate_name}</strong></p>
-              <p>Time: {interview.scheduled_time}</p>
+            <button onClick={() => alert("Chat Started")}>
+              Chat
+            </button>
+          </div>
 
-              <button
-                style={styles.editBtn}
-                onClick={() => editInterview(interview)}
-              >
-                Edit
-              </button>
+        </div>
+      ))}
 
-              <button
-                style={styles.deleteBtn}
-                onClick={() => deleteInterview(interview.id)}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
-
-        <h4 style={{ marginTop: "20px" }}>
-          Phone Call Interviews ({phoneCallCount})
-        </h4>
-        {interviews
-          .filter(i => i.interview_type === "Phone Call")
-          .map(interview => (
-            <div key={interview.id} style={styles.listItem}>
-              <p><strong>{interview.candidate_name}</strong></p>
-              <p>Time: {interview.scheduled_time}</p>
-
-              <button
-                style={styles.editBtn}
-                onClick={() => editInterview(interview)}
-              >
-                Edit
-              </button>
-
-              <button
-                style={styles.deleteBtn}
-                onClick={() => deleteInterview(interview.id)}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
-      </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    padding: "30px",
-    fontFamily: "Arial",
-    backgroundColor: "#f4f6f9",
-    minHeight: "100vh"
-  },
-  heading: {
-    textAlign: "center",
-    marginBottom: "30px",
-    color: "#1f2937"
-  },
-  card: {
-    backgroundColor: "white",
-    padding: "20px",
-    marginBottom: "20px",
-    borderRadius: "10px",
-    boxShadow: "0 4px 10px rgba(0,0,0,0.05)"
-  },
-  listItem: {
-    borderBottom: "1px solid #ddd",
-    padding: "10px 0"
-  },
-  editBtn: {
-    backgroundColor: "#2563eb",
-    color: "white",
-    border: "none",
-    padding: "6px 12px",
-    marginRight: "10px",
-    borderRadius: "5px",
-    cursor: "pointer"
-  },
-  deleteBtn: {
-    backgroundColor: "#dc2626",
-    color: "white",
-    border: "none",
-    padding: "6px 12px",
-    borderRadius: "5px",
-    cursor: "pointer"
-  },
-  input: {
-    display: "block",
-    marginBottom: "10px",
-    padding: "8px",
-    width: "100%",
-    borderRadius: "5px",
-    border: "1px solid #ccc"
-  }
-};
 
 export default HRDashboard;
