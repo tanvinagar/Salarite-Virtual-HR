@@ -183,7 +183,7 @@ function HRDashboard() {
             Delete Interview
           </button>
 
-          {/* ⭐ NEW — Participants section */}
+          {/*  NEW — Participants section */}
           <h4>Add Participants</h4>
 
           <input
